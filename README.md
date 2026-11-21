@@ -38,7 +38,7 @@ dan (iv) skrip visualisasi Python untuk keluaran lintasan.
 
 ### A. Model Fisis
 
-Peluru dimodelkan sebagai massa titik $m$ yang bergerak pada bidang vertikal $x$–$y$.
+Peluru dimodelkan sebagai massa titik $m$ yang bergerak pada bidang vertikal $(x, y)$.
 Gaya hambat aerodinamis
 
 $$
@@ -142,20 +142,20 @@ menghasilkan nol peringatan. Parameter bawaan tercantum pada Tabel I.
 
 ### E. Protokol Verifikasi
 
+Untuk $C_d = 0$ dan $y_0 = 0$, sistem (3) memiliki solusi analitik
+
+$$
+R = \frac{v_0^2 \sin 2\theta}{g}, \qquad
+H_{\max} = \frac{v_0^2 \sin^2\theta}{2g}, \qquad
+T = \frac{2 v_0 \sin\theta}{g}.
+\tag{7}
+$$
+
 Tiga uji dijalankan otomatis oleh `./ballistics --verify`, dan program keluar dengan
 kode 1 bila salah satunya gagal:
 
 - **V1 (solusi vakum).** Dengan $C_d = 0$ dan $\theta \in \lbrace 15^\circ, 30^\circ, 45^\circ, 60^\circ, 75^\circ \rbrace$,
-  hasil simulasi dibandingkan dengan
-
-  $$
-  R = \frac{v_0^2 \sin 2\theta}{g}, \qquad
-  H_{\max} = \frac{v_0^2 \sin^2\theta}{2g}, \qquad
-  T = \frac{2 v_0 \sin\theta}{g}.
-  \tag{7}
-  $$
-
-  Kriteria lulus: galat relatif ketiga besaran $\le 10^{-10}$.
+  hasil simulasi dibandingkan dengan (7). Kriteria lulus: galat relatif ketiga besaran $\le 10^{-10}$.
 - **V2 (arah efek hambat).** Untuk $C_d = 0{,}47$, harus berlaku $R < R_\text{vakum}$ dan $H < H_\text{vakum}$.
 - **V3 (konvergensi dua titik).** Selisih relatif $R$ antara $h = 10^{-2}$ s dan $h = 10^{-3}$ s harus $\le 10^{-6}$.
 
@@ -239,11 +239,11 @@ daripada pada 45°.
 ## IV. Pembahasan
 
 Dengan viskositas udara $\mu = 1{,}81 \times 10^{-5}$ Pa·s, bilangan Reynolds
-$\mathrm{Re} = \rho v d/\mu$ selama penerbangan berada pada rentang
-$9{,}1 \times 10^4$–$2{,}50 \times 10^5$. Batas bawah terjadi pada laju minimum
+$\mathrm{Re} = \rho v d/\mu$ selama penerbangan berada di antara
+$9{,}1 \times 10^4$ dan $2{,}50 \times 10^5$. Batas bawah terjadi pada laju minimum
 18,10 m/s ($t = 3{,}01$ s, sesudah puncak) dan batas atas pada saat peluncuran.
 Rentang ini mencakup rezim subkritis hingga batas krisis hambat bola mulus
-($\mathrm{Re} \approx 2$–$3 \times 10^5$), tempat $C_d$ dapat turun tajam [3]. Oleh
+($\mathrm{Re} \approx 2 \times 10^5$ sampai $3 \times 10^5$), tempat $C_d$ dapat turun tajam [3]. Oleh
 karena itu, asumsi $C_d$ konstan merupakan sumber ketidakpastian model terbesar, jauh
 melampaui galat numerik pada Bagian III-B. Pengembangan yang wajar mencakup $C_d(\mathrm{Re})$,
 $\rho(y)$ menurut atmosfer standar [2], angin, dan gaya Magnus untuk peluru yang berputar.
