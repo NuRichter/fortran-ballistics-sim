@@ -1,20 +1,20 @@
 !===============================================================================
 ! fortran-ballistics-sim
-! Simulasi gerak peluru 2D dengan hambatan udara kuadratik.
+! 2D projectile motion with quadratic air drag.
 !
-!   Model   : F_d = 1/2 * rho * Cd * A * v^2, berlawanan arah kecepatan
-!   Metode  : Runge-Kutta orde 4 (RK4) dengan langkah waktu tetap
-!   Presisi : real64 (iso_fortran_env), standar Fortran 2008
+!   Model     : F_d = 1/2 * rho * Cd * A * v^2, opposite to the velocity
+!   Method    : fourth-order Runge-Kutta (RK4) with a fixed time step
+!   Precision : real64 (iso_fortran_env), Fortran 2008 standard
 !
-! Kompilasi (dari akar proyek):
+! Build (from the project root):
 !   gfortran -Wall -Wextra -Wimplicit-interface -fcheck=all -O2 \
 !            src/ballistics.f90 -o ballistics
 !
-! Pemakaian:
-!   ./ballistics            simulasi utama, tulis results/trajectory.csv
-!   ./ballistics --verify   uji verifikasi fisika (Cd = 0 vs solusi vakum)
-!   ./ballistics --study    studi konvergensi RK4 dan sudut elevasi optimum
-!   ./ballistics --help     tampilkan bantuan
+! Usage:
+!   ./ballistics            main simulation, writes results/trajectory.csv
+!   ./ballistics --verify   physics verification tests (V1 to V3)
+!   ./ballistics --study    RK4 convergence study and optimum elevation angle
+!   ./ballistics --help     show help
 !===============================================================================
 module ballistics_core
    use, intrinsic :: iso_fortran_env, only: real64
@@ -24,36 +24,36 @@ module ballistics_core
    integer, parameter, public :: dp = real64
    real(dp), parameter, public :: PI = acos(-1.0_dp)
 
-   ! Indeks komponen vektor keadaan s = [x, y, vx, vy]
+   ! Component indices of the state vector s = [x, y, vx, vy]
    integer, parameter, public :: IX = 1, IY = 2, IVX = 3, IVY = 4
 
-   !=================== PARAMETER AWAL (silakan ubah) =========================
-   ! Nilai bawaan di bawah dipakai oleh simulasi utama. Contoh: bola berdiameter
-   ! 7,4 cm dan bermassa 145 g yang dilempar 50 m/s pada sudut 45 derajat.
+   !==================== DEFAULT PARAMETERS (edit here) =======================
+   ! The values below are used by the main simulation. Example: a ball with a
+   ! diameter of 7.4 cm and a mass of 145 g thrown at 50 m/s and 45 degrees.
    type, public :: sim_params
-      real(dp) :: v0        = 50.0_dp      ! kecepatan awal              [m/s]
-      real(dp) :: theta_deg = 45.0_dp      ! sudut elevasi               [derajat]
-      real(dp) :: y0        = 0.0_dp       ! ketinggian awal             [m]
-      real(dp) :: mass      = 0.145_dp     ! massa peluru                [kg]
-      real(dp) :: diameter  = 0.074_dp     ! diameter peluru             [m]
-      real(dp) :: cd        = 0.47_dp      ! koefisien hambat (bola)     [-]
-      real(dp) :: rho       = 1.225_dp     ! massa jenis udara (ISA)     [kg/m^3]
-      real(dp) :: g         = 9.80665_dp   ! percepatan gravitasi        [m/s^2]
-      real(dp) :: dt        = 1.0e-3_dp    ! langkah waktu integrasi     [s]
-      real(dp) :: t_max     = 600.0_dp     ! batas waktu pengaman        [s]
+      real(dp) :: v0        = 50.0_dp      ! initial speed               [m/s]
+      real(dp) :: theta_deg = 45.0_dp      ! elevation angle             [deg]
+      real(dp) :: y0        = 0.0_dp       ! initial height              [m]
+      real(dp) :: mass      = 0.145_dp     ! projectile mass             [kg]
+      real(dp) :: diameter  = 0.074_dp     ! projectile diameter         [m]
+      real(dp) :: cd        = 0.47_dp      ! drag coefficient (sphere)   [-]
+      real(dp) :: rho       = 1.225_dp     ! air density (ISA)           [kg/m^3]
+      real(dp) :: g         = 9.80665_dp   ! gravitational acceleration  [m/s^2]
+      real(dp) :: dt        = 1.0e-3_dp    ! integration time step       [s]
+      real(dp) :: t_max     = 600.0_dp     ! safety time limit           [s]
    end type sim_params
    !===========================================================================
 
-   ! Ringkasan hasil satu kali simulasi
+   ! Summary of a single simulation run
    type, public :: sim_summary
-      real(dp) :: range     = 0.0_dp       ! jarak horizontal saat y = 0 [m]
-      real(dp) :: h_max     = 0.0_dp       ! tinggi maksimum             [m]
-      real(dp) :: x_apex    = 0.0_dp       ! posisi x di titik puncak    [m]
-      real(dp) :: t_apex    = 0.0_dp       ! waktu mencapai puncak       [s]
-      real(dp) :: t_flight  = 0.0_dp       ! waktu tempuh total          [s]
-      real(dp) :: v_impact  = 0.0_dp       ! laju saat menyentuh tanah   [m/s]
-      integer  :: n_points  = 0            ! jumlah baris data lintasan
-      logical  :: landed    = .false.      ! .true. bila y = 0 tercapai
+      real(dp) :: range     = 0.0_dp       ! horizontal distance at y = 0 [m]
+      real(dp) :: h_max     = 0.0_dp       ! maximum height              [m]
+      real(dp) :: x_apex    = 0.0_dp       ! x position at the apex      [m]
+      real(dp) :: t_apex    = 0.0_dp       ! time to reach the apex      [s]
+      real(dp) :: t_flight  = 0.0_dp       ! total time of flight        [s]
+      real(dp) :: v_impact  = 0.0_dp       ! speed at ground impact      [m/s]
+      integer  :: n_points  = 0            ! number of trajectory rows
+      logical  :: landed    = .false.      ! .true. once y = 0 is reached
    end type sim_summary
 
    public :: validate_params, simulate, rk4_step
@@ -62,32 +62,32 @@ module ballistics_core
 contains
 
    !----------------------------------------------------------------------------
-   ! Periksa parameter; hentikan program bila tidak masuk akal secara fisik.
+   ! Check the parameters and stop the program if any is physically invalid.
    !----------------------------------------------------------------------------
    subroutine validate_params(p)
       type(sim_params), intent(in) :: p
 
-      if (p%v0 <= 0.0_dp)       error stop 'Parameter tidak valid: v0 harus > 0'
-      if (p%mass <= 0.0_dp)     error stop 'Parameter tidak valid: mass harus > 0'
-      if (p%diameter <= 0.0_dp) error stop 'Parameter tidak valid: diameter harus > 0'
-      if (p%cd < 0.0_dp)        error stop 'Parameter tidak valid: cd harus >= 0'
-      if (p%rho < 0.0_dp)       error stop 'Parameter tidak valid: rho harus >= 0'
-      if (p%g <= 0.0_dp)        error stop 'Parameter tidak valid: g harus > 0'
-      if (p%dt <= 0.0_dp)       error stop 'Parameter tidak valid: dt harus > 0'
-      if (p%t_max <= p%dt)      error stop 'Parameter tidak valid: t_max harus > dt'
-      if (p%y0 < 0.0_dp)        error stop 'Parameter tidak valid: y0 harus >= 0'
+      if (p%v0 <= 0.0_dp)       error stop 'Invalid parameter: v0 must be > 0'
+      if (p%mass <= 0.0_dp)     error stop 'Invalid parameter: mass must be > 0'
+      if (p%diameter <= 0.0_dp) error stop 'Invalid parameter: diameter must be > 0'
+      if (p%cd < 0.0_dp)        error stop 'Invalid parameter: cd must be >= 0'
+      if (p%rho < 0.0_dp)       error stop 'Invalid parameter: rho must be >= 0'
+      if (p%g <= 0.0_dp)        error stop 'Invalid parameter: g must be > 0'
+      if (p%dt <= 0.0_dp)       error stop 'Invalid parameter: dt must be > 0'
+      if (p%t_max <= p%dt)      error stop 'Invalid parameter: t_max must be > dt'
+      if (p%y0 < 0.0_dp)        error stop 'Invalid parameter: y0 must be >= 0'
       if (p%theta_deg <= -90.0_dp .or. p%theta_deg > 90.0_dp) &
-         error stop 'Parameter tidak valid: theta_deg harus di (-90, 90]'
+         error stop 'Invalid parameter: theta_deg must be in (-90, 90]'
       if (p%y0 <= 0.0_dp .and. p%theta_deg <= 0.0_dp) &
-         error stop 'Parameter tidak valid: dari tanah (y0 = 0) theta_deg harus > 0'
+         error stop 'Invalid parameter: from the ground (y0 = 0) theta_deg must be > 0'
    end subroutine validate_params
 
    !----------------------------------------------------------------------------
-   ! Ruas kanan sistem PDB orde satu: ds/dt = f(s)
+   ! Right-hand side of the first-order ODE system ds/dt = f(s)
    !   dx/dt  = vx
    !   dy/dt  = vy
    !   dvx/dt = -k |v| vx
-   !   dvy/dt = -g - k |v| vy,     dengan k = rho * Cd * A / (2 m)
+   !   dvy/dt = -g - k |v| vy,     with k = rho * Cd * A / (2 m)
    !----------------------------------------------------------------------------
    pure function deriv(s, k, g) result(ds)
       real(dp), intent(in) :: s(4), k, g
@@ -102,7 +102,7 @@ contains
    end function deriv
 
    !----------------------------------------------------------------------------
-   ! Satu langkah Runge-Kutta orde 4 sebesar h dari keadaan s.
+   ! One fourth-order Runge-Kutta step of size h from state s.
    !----------------------------------------------------------------------------
    pure function rk4_step(s, h, k, g) result(s_new)
       real(dp), intent(in) :: s(4), h, k, g
@@ -117,10 +117,10 @@ contains
    end function rk4_step
 
    !----------------------------------------------------------------------------
-   ! Lokasi kejadian (event location) di dalam satu langkah.
-   ! Cari h di (0, dt] sehingga komponen 'comp' dari rk4_step(s, h) = 0,
-   ! dengan syarat komponen tersebut > 0 di h = 0 dan <= 0 di h = dt.
-   ! Bisection berhenti saat interval tidak bisa dibelah lagi (presisi mesin).
+   ! Event location inside one step.
+   ! Find h in (0, dt] such that component 'comp' of rk4_step(s, h) = 0,
+   ! given that the component is > 0 at h = 0 and <= 0 at h = dt.
+   ! Bisection stops when the interval cannot be halved again (machine precision).
    !----------------------------------------------------------------------------
    pure function locate_zero(s, dt, comp, k, g) result(h)
       real(dp), intent(in) :: s(4), dt, k, g
@@ -145,9 +145,9 @@ contains
    end function locate_zero
 
    !----------------------------------------------------------------------------
-   ! Integrasi lintasan dari t = 0 hingga peluru menyentuh tanah (y <= 0).
-   ! Bila csv_unit diberikan, setiap titik (t, x, y, vx, vy) ditulis ke unit
-   ! tersebut; titik terakhir adalah titik tumbukan hasil lokasi kejadian.
+   ! Integrate the trajectory from t = 0 until the projectile hits the ground
+   ! (y <= 0). If csv_unit is present, every point (t, x, y, vx, vy) is written
+   ! to that unit. The last point is the impact point from event location.
    !----------------------------------------------------------------------------
    subroutine simulate(p, res, csv_unit)
       type(sim_params),  intent(in)  :: p
@@ -174,7 +174,7 @@ contains
       do n = 1, n_max
          s_new = rk4_step(s, p%dt, k, p%g)
 
-         ! Titik puncak: vy berganti tanda dari positif ke non-positif
+         ! Apex: vy changes sign from positive to non-positive
          if (s(IVY) > 0.0_dp .and. s_new(IVY) <= 0.0_dp) then
             h     = locate_zero(s, p%dt, IVY, k, p%g)
             s_evt = rk4_step(s, h, k, p%g)
@@ -185,7 +185,7 @@ contains
             end if
          end if
 
-         ! Tumbukan: y melewati nol di dalam langkah ini
+         ! Impact: y crosses zero within this step
          if (s_new(IY) <= 0.0_dp) then
             h          = locate_zero(s, p%dt, IY, k, p%g)
             s_evt      = rk4_step(s, h, k, p%g)
@@ -199,11 +199,11 @@ contains
          end if
 
          s = s_new
-         t = real(n, dp) * p%dt          ! hindari akumulasi galat t = t + dt
+         t = real(n, dp) * p%dt          ! avoids error build-up from t = t + dt
          call emit(t, s)
       end do
 
-      ! Batas t_max tercapai tanpa menyentuh tanah
+      ! t_max reached before hitting the ground
       res%landed   = .false.
       res%range    = s(IX)
       res%t_flight = t
@@ -227,7 +227,7 @@ contains
    end subroutine simulate
 
    !----------------------------------------------------------------------------
-   ! Format bilangan real64 dengan 17 digit signifikan tanpa spasi di depan.
+   ! Format a real64 value with 17 significant digits and no leading spaces.
    !----------------------------------------------------------------------------
    function fmt_real(x) result(str)
       real(dp), intent(in) :: x
@@ -239,7 +239,7 @@ contains
    end function fmt_real
 
    !----------------------------------------------------------------------------
-   ! Solusi analitik vakum (Cd = 0) untuk peluncuran dari tanah (y0 = 0).
+   ! Vacuum analytic solution (Cd = 0) for a launch from the ground (y0 = 0).
    !----------------------------------------------------------------------------
    pure function vacuum_range(p) result(r)
       type(sim_params), intent(in) :: p
@@ -283,7 +283,7 @@ program ballistics
       case ('--help', '-h')
          call print_usage()
       case default
-         write(error_unit, '(a)') 'Argumen tidak dikenal: ' // trim(arg)
+         write(error_unit, '(a)') 'Unknown argument: ' // trim(arg)
          call print_usage()
          error stop 2
       end select
@@ -293,15 +293,15 @@ contains
 
    !----------------------------------------------------------------------------
    subroutine print_usage()
-      write(*, '(a)') 'Pemakaian: ballistics [--verify | --study | --help]'
-      write(*, '(a)') '  (tanpa argumen)  simulasi utama, tulis ' // OUT_FILE
-      write(*, '(a)') '  --verify, -v     uji verifikasi Cd = 0 vs solusi analitik vakum'
-      write(*, '(a)') '  --study,  -s     studi konvergensi RK4 dan sudut elevasi optimum'
-      write(*, '(a)') '  --help,   -h     tampilkan bantuan ini'
+      write(*, '(a)') 'Usage: ballistics [--verify | --study | --help]'
+      write(*, '(a)') '  (no argument)    main simulation, writes ' // OUT_FILE
+      write(*, '(a)') '  --verify, -v     verification tests V1 to V3'
+      write(*, '(a)') '  --study,  -s     RK4 convergence study and optimum elevation angle'
+      write(*, '(a)') '  --help,   -h     show this help'
    end subroutine print_usage
 
    !----------------------------------------------------------------------------
-   ! Simulasi utama: tulis CSV lintasan dan cetak ringkasan.
+   ! Main simulation: write the trajectory CSV and print a summary.
    !----------------------------------------------------------------------------
    subroutine run_simulation()
       type(sim_params)  :: p
@@ -314,8 +314,8 @@ contains
       open(newunit=u, file=OUT_FILE, status='replace', action='write', &
            iostat=ios, iomsg=msg)
       if (ios /= 0) then
-         write(error_unit, '(a)') 'Gagal membuka ' // OUT_FILE // ': ' // trim(msg)
-         write(error_unit, '(a)') 'Jalankan program dari akar proyek; folder results/ harus ada.'
+         write(error_unit, '(a)') 'Cannot open ' // OUT_FILE // ': ' // trim(msg)
+         write(error_unit, '(a)') 'Run the program from the project root. The results/ folder must exist.'
          error stop 1
       end if
 
@@ -335,53 +335,53 @@ contains
       character(len=*), parameter :: FR   = '(2x, a, f14.4, 1x, a)'
 
       write(*, '(a)') LINE
-      write(*, '(a)') '  SIMULASI GERAK PELURU 2D  |  RK4, real64'
+      write(*, '(a)') '  2D PROJECTILE SIMULATION  |  RK4, real64'
       write(*, '(a)') LINE
-      write(*, FR) 'Kecepatan awal      v0    =', p%v0,        'm/s'
-      write(*, FR) 'Sudut elevasi       theta =', p%theta_deg, 'derajat'
-      write(*, FR) 'Ketinggian awal     y0    =', p%y0,        'm'
-      write(*, FR) 'Massa               m     =', p%mass,      'kg'
+      write(*, FR) 'Initial speed       v0    =', p%v0,        'm/s'
+      write(*, FR) 'Elevation angle     theta =', p%theta_deg, 'deg'
+      write(*, FR) 'Initial height      y0    =', p%y0,        'm'
+      write(*, FR) 'Mass                m     =', p%mass,      'kg'
       write(*, FR) 'Diameter            d     =', p%diameter,  'm'
-      write(*, FR) 'Koefisien hambat    Cd    =', p%cd,        '-'
-      write(*, FR) 'Massa jenis udara   rho   =', p%rho,       'kg/m^3'
-      write(*, '(2x, a, es14.4, 1x, a)') 'Langkah waktu       dt    =', p%dt, 's'
+      write(*, FR) 'Drag coefficient    Cd    =', p%cd,        '-'
+      write(*, FR) 'Air density         rho   =', p%rho,       'kg/m^3'
+      write(*, '(2x, a, es14.4, 1x, a)') 'Time step           dt    =', p%dt, 's'
       write(*, '(a)') SEP
-      write(*, FR) 'Jarak terjauh       R     =', res%range,    'm'
-      write(*, FR) 'Tinggi maksimum     H     =', res%h_max,    'm'
-      write(*, FR) 'Waktu tempuh        T     =', res%t_flight, 's'
-      write(*, FR) 'Waktu ke puncak     t_H   =', res%t_apex,   's'
-      write(*, FR) 'Laju tumbukan       v_imp =', res%v_impact, 'm/s'
-      write(*, '(2x, a, i14)') 'Jumlah titik data         =', res%n_points
+      write(*, FR) 'Range               R     =', res%range,    'm'
+      write(*, FR) 'Maximum height      H     =', res%h_max,    'm'
+      write(*, FR) 'Time of flight      T     =', res%t_flight, 's'
+      write(*, FR) 'Time to apex        t_H   =', res%t_apex,   's'
+      write(*, FR) 'Impact speed        v_imp =', res%v_impact, 'm/s'
+      write(*, '(2x, a, i14)') 'Number of data points     =', res%n_points
       if (p%y0 <= 0.0_dp) then
          write(*, '(a)') SEP
-         write(*, '(a)') '  Pembanding tanpa hambatan udara (vakum):'
-         write(*, FR) 'R vakum                   =', vacuum_range(p),  'm'
-         write(*, FR) 'H vakum                   =', vacuum_height(p), 'm'
-         write(*, FR) 'Reduksi jarak oleh hambat =', &
+         write(*, '(a)') '  Vacuum comparison (no air drag):'
+         write(*, FR) 'R vacuum                  =', vacuum_range(p),  'm'
+         write(*, FR) 'H vacuum                  =', vacuum_height(p), 'm'
+         write(*, FR) 'Range reduction by drag   =', &
                       100.0_dp * (1.0_dp - res%range / vacuum_range(p)), '%'
       end if
       write(*, '(a)') SEP
       if (res%landed) then
-         write(*, '(a)') '  Data lintasan disimpan ke ' // OUT_FILE
+         write(*, '(a)') '  Trajectory data written to ' // OUT_FILE
       else
-         write(*, '(a)') '  PERINGATAN: t_max tercapai sebelum peluru menyentuh tanah.'
+         write(*, '(a)') '  WARNING: t_max reached before the projectile hit the ground.'
       end if
       write(*, '(a)') LINE
    end subroutine print_summary
 
    !----------------------------------------------------------------------------
-   ! Uji verifikasi fisika.
-   !  Uji 1: Cd = 0 dibandingkan dengan rumus analitik vakum
-   !         R = v0^2 sin(2 theta) / g,  H = v0^2 sin^2(theta) / (2 g),
-   !         T = 2 v0 sin(theta) / g     untuk beberapa sudut.
-   !  Uji 2: dengan Cd > 0, R dan H harus lebih kecil dari nilai vakum.
-   !  Uji 3: konvergensi RK4, R pada dt = 1e-2 s dan 1e-3 s harus sangat dekat.
-   ! Program berhenti dengan kode keluar 1 bila ada uji yang gagal.
+   ! Physics verification tests.
+   !  V1: Cd = 0 compared with the vacuum analytic formulas
+   !      R = v0^2 sin(2 theta) / g,  H = v0^2 sin^2(theta) / (2 g),
+   !      T = 2 v0 sin(theta) / g     for several angles.
+   !  V2: with Cd > 0, R and H must be smaller than the vacuum values.
+   !  V3: RK4 convergence, R at dt = 1e-2 s and 1e-3 s must be very close.
+   ! The program stops with exit code 1 if any test fails.
    !----------------------------------------------------------------------------
    subroutine run_verification()
       real(dp), parameter :: ANGLES(5) = [15.0_dp, 30.0_dp, 45.0_dp, 60.0_dp, 75.0_dp]
-      real(dp), parameter :: TOL_VAC  = 1.0e-10_dp   ! galat relatif maks. uji 1
-      real(dp), parameter :: TOL_CONV = 1.0e-6_dp    ! galat relatif maks. uji 3
+      real(dp), parameter :: TOL_VAC  = 1.0e-10_dp   ! max relative error, V1
+      real(dp), parameter :: TOL_CONV = 1.0e-6_dp    ! max relative error, V3
       type(sim_params)  :: p
       type(sim_summary) :: res, res_coarse
       real(dp) :: r_ref, h_ref, t_ref, e_r, e_h, e_t, e_conv
@@ -391,9 +391,9 @@ contains
       n_fail = 0
 
       write(*, '(a)') repeat('=', 78)
-      write(*, '(a)') '  UJI 1: Cd = 0 vs solusi analitik vakum  (v0 = 50 m/s, dt = 1e-3 s)'
+      write(*, '(a)') '  TEST V1: Cd = 0 vs vacuum analytic solution  (v0 = 50 m/s, dt = 1e-3 s)'
       write(*, '(a)') repeat('=', 78)
-      write(*, '(a)') '  theta     R_sim [m]      R_ref [m]    galat_R    galat_H    galat_T  status'
+      write(*, '(a)') '  theta     R_sim [m]      R_ref [m]      err_R      err_H      err_T  status'
       write(*, '(a)') repeat('-', 78)
 
       p%cd = 0.0_dp
@@ -415,45 +415,45 @@ contains
          write(*, '(2x, f5.1, 2f15.9, 3es11.2, 2x, a)') &
             p%theta_deg, res%range, r_ref, e_r, e_h, e_t, status_text(ok)
       end do
-      write(*, '(a, es9.1)') '  Toleransi galat relatif: ', TOL_VAC
+      write(*, '(a, es9.1)') '  Relative error tolerance: ', TOL_VAC
 
-      ! Uji 2: hambatan udara harus mengurangi jarak dan tinggi
+      ! V2: air drag must reduce both range and height
       write(*, '(a)') repeat('-', 78)
       p = sim_params()
       call simulate(p, res)
       ok = res%landed .and. res%range < vacuum_range(p) .and. res%h_max < vacuum_height(p)
       if (.not. ok) n_fail = n_fail + 1
-      write(*, '(a)') '  UJI 2: Cd = 0.47 menghasilkan R dan H lebih kecil dari vakum'
+      write(*, '(a)') '  TEST V2: Cd = 0.47 gives R and H below the vacuum values'
       write(*, '(4x, a, f10.4, a, f10.4, a)') 'R = ', res%range, ' m  <  ', vacuum_range(p), ' m'
       write(*, '(4x, a, f10.4, a, f10.4, a, 2x, a)') 'H = ', res%h_max, ' m  <  ', &
          vacuum_height(p), ' m', status_text(ok)
 
-      ! Uji 3: konvergensi terhadap ukuran langkah (Cd > 0)
+      ! V3: convergence with respect to the step size (Cd > 0)
       write(*, '(a)') repeat('-', 78)
       p%dt = 1.0e-2_dp
       call simulate(p, res_coarse)
       e_conv = abs(res_coarse%range - res%range) / res%range
       ok = res_coarse%landed .and. e_conv <= TOL_CONV
       if (.not. ok) n_fail = n_fail + 1
-      write(*, '(a)') '  UJI 3: konvergensi RK4, R(dt = 1e-2 s) vs R(dt = 1e-3 s)'
-      write(*, '(4x, a, es10.2, a, es8.1, a, 2x, a)') 'selisih relatif = ', e_conv, &
-         '  (batas', TOL_CONV, ')', status_text(ok)
+      write(*, '(a)') '  TEST V3: RK4 convergence, R(dt = 1e-2 s) vs R(dt = 1e-3 s)'
+      write(*, '(4x, a, es10.2, a, es8.1, a, 2x, a)') 'relative difference = ', e_conv, &
+         '  (limit', TOL_CONV, ')', status_text(ok)
 
       write(*, '(a)') repeat('=', 78)
       if (n_fail > 0) then
-         write(*, '(a, i0, a)') '  HASIL: ', n_fail, ' uji GAGAL'
+         write(*, '(a, i0, a)') '  RESULT: ', n_fail, ' test(s) FAILED'
          error stop 1
       end if
-      write(*, '(a)') '  HASIL: semua uji LULUS'
+      write(*, '(a)') '  RESULT: all tests PASSED'
    end subroutine run_verification
 
    !----------------------------------------------------------------------------
-   ! Studi numerik dengan parameter bawaan.
-   !  1) Konvergensi: galat relatif R, H, T terhadap solusi acuan dt = 1e-4 s
-   !     untuk dt = 0,2 / 2^j (j = 0..4), dengan orde empiris
-   !     p = log2( e(dt) / e(dt/2) ).
-   !  2) Sudut elevasi yang memaksimalkan jarak (sapuan 25..45 derajat,
-   !     resolusi 0,05 derajat).
+   ! Numerical study with the default parameters.
+   !  1) Convergence: relative error of R, H, T with respect to a reference
+   !     solution at dt = 1e-4 s for dt = 0.2 / 2^j (j = 0..4), with empirical
+   !     order p = log2( e(dt) / e(dt/2) ).
+   !  2) Elevation angle that maximizes the range (sweep from 25 to 45 degrees,
+   !     resolution 0.05 degrees).
    !----------------------------------------------------------------------------
    subroutine run_study()
       integer,  parameter :: N_DT = 5
@@ -466,9 +466,9 @@ contains
       k = 0.5_dp * p%rho * p%cd * (0.25_dp * PI * p%diameter**2) / p%mass
 
       write(*, '(a)') repeat('=', 74)
-      write(*, '(a)') '  STUDI KONVERGENSI RK4  (parameter bawaan, acuan dt = 1e-4 s)'
+      write(*, '(a)') '  RK4 CONVERGENCE STUDY  (default parameters, reference dt = 1e-4 s)'
       write(*, '(a)') repeat('=', 74)
-      write(*, '(a)') '      dt [s]  langkah    galat_R    galat_H    galat_T   p_R   p_H   p_T'
+      write(*, '(a)') '      dt [s]    steps      err_R      err_H      err_T   p_R   p_H   p_T'
       write(*, '(a)') repeat('-', 74)
 
       p%dt = DT_REF
@@ -492,9 +492,9 @@ contains
       end do
 
       write(*, '(a)') repeat('-', 74)
-      write(*, '(a, es12.4, a)') '  Konstanta hambat  k   = ', k, ' 1/m'
-      write(*, '(a, f12.4, a)')  '  Laju terminal     v_t = ', sqrt(p%g / k), ' m/s'
-      write(*, '(a, f12.4)')     '  Rasio F_d / (m g) pada t = 0  = ', k * p%v0**2 / p%g
+      write(*, '(a, es12.4, a)') '  Drag constant     k   = ', k, ' 1/m'
+      write(*, '(a, f12.4, a)')  '  Terminal speed    v_t = ', sqrt(p%g / k), ' m/s'
+      write(*, '(a, f12.4)')     '  Ratio F_d / (m g) at t = 0    = ', k * p%v0**2 / p%g
 
       p%dt    = 1.0e-3_dp
       best_r  = 0.0_dp
@@ -507,8 +507,8 @@ contains
             best_th = p%theta_deg
          end if
       end do
-      write(*, '(a, f6.2, a, f10.4, a)') '  Sudut optimum     theta* = ', best_th, &
-         ' derajat  (R = ', best_r, ' m)'
+      write(*, '(a, f6.2, a, f10.4, a)') '  Optimum angle     theta* = ', best_th, &
+         ' deg  (R = ', best_r, ' m)'
       write(*, '(a)') repeat('=', 74)
    end subroutine run_study
 
@@ -517,9 +517,9 @@ contains
       logical, intent(in) :: ok
       character(len=:), allocatable :: txt
       if (ok) then
-         txt = 'LULUS'
+         txt = 'PASS'
       else
-         txt = 'GAGAL'
+         txt = 'FAIL'
       end if
    end function status_text
 

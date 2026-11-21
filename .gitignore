@@ -1,4 +1,4 @@
-# --- Hasil kompilasi Fortran ---
+# --- Fortran build output ---
 ballistics
 *.o
 *.obj
@@ -10,8 +10,8 @@ ballistics
 *.exe
 *.out
 
-# --- Keluaran simulasi (dibuat ulang saat program dijalankan) ---
-# Grafik trajectory.png tetap di-commit sebagai pratinjau README.
+# --- Simulation output (regenerated on every run) ---
+# trajectory.png stays committed as the README preview.
 results/*
 !results/.gitkeep
 !results/trajectory.png
@@ -23,7 +23,7 @@ __pycache__/
 venv/
 .ipynb_checkpoints/
 
-# --- Editor dan sistem operasi ---
+# --- Editor and operating system ---
 .vscode/
 .idea/
 *.swp

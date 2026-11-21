@@ -304,7 +304,7 @@ fortran-ballistics-sim/
 
 Run all commands from the project root, because the program writes to
 `results/trajectory.csv`. In PowerShell or cmd, replace `./ballistics` with
-`.\ballistics.exe`. The console output of the program is in Indonesian.
+`.\ballistics.exe`.
 
 ```bash
 gfortran -Wall -Wextra -Wimplicit-interface -fcheck=all -O2 src/ballistics.f90 -o ballistics
@@ -333,7 +333,7 @@ for the default parameters).
 ### E. Changing Parameters
 
 All parameters in Table I are fields of type `sim_params` near the top of
-`src/ballistics.f90`, in the block marked `PARAMETER AWAL`. Edit the values and
+`src/ballistics.f90`, in the block marked `DEFAULT PARAMETERS`. Edit the values and
 recompile. If `g` is changed, also update the constant `G` in
 `scripts/plot_trajectory.py` so that the vacuum curve in Fig. 1 stays correct. The
 vacuum comparison (7) holds only for $y_0 = 0$, so the program prints it only in that

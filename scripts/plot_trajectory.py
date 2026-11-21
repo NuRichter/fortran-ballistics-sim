@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Visualisasi lintasan peluru dari results/trajectory.csv.
+"""Plot the projectile trajectory from results/trajectory.csv.
 
-Membaca keluaran program Fortran (kolom t, x, y, vx, vy), lalu menggambar
-lintasan dengan hambatan udara beserta lintasan vakum sebagai pembanding.
-Grafik disimpan ke results/trajectory.png.
+Reads the output of the Fortran program (columns t, x, y, vx, vy) and draws
+the trajectory with air drag together with the vacuum trajectory for
+comparison. The figure is saved to results/trajectory.png.
 
-Pemakaian (dari folder mana pun):
+Usage (from any folder):
     python scripts/plot_trajectory.py
     python scripts/plot_trajectory.py --input results/trajectory.csv \
         --output results/trajectory.png --no-vacuum
@@ -19,7 +19,7 @@ from pathlib import Path
 
 import matplotlib
 
-matplotlib.use("Agg")  # backend tanpa jendela, aman untuk terminal/CI
+matplotlib.use("Agg")  # non-interactive backend, safe for terminals and CI
 
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
@@ -29,12 +29,12 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT = ROOT / "results" / "trajectory.csv"
 DEFAULT_OUTPUT = ROOT / "results" / "trajectory.png"
 
-# Samakan dengan nilai g pada src/ballistics.f90
+# Keep in sync with the value of g in src/ballistics.f90
 G = 9.80665  # m/s^2
 
-# Palet
-COLOR_DRAG = "#2a78d6"     # lintasan dengan hambatan udara
-COLOR_VACUUM = "#898781"   # lintasan vakum (acuan)
+# Palette
+COLOR_DRAG = "#2a78d6"     # trajectory with air drag
+COLOR_VACUUM = "#898781"   # vacuum trajectory (reference)
 INK_PRIMARY = "#0b0b0b"
 INK_SECONDARY = "#52514e"
 INK_MUTED = "#898781"
@@ -44,32 +44,32 @@ SURFACE = "#fcfcfb"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Plot lintasan peluru 2D.")
+    parser = argparse.ArgumentParser(description="Plot a 2D projectile trajectory.")
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT,
-                        help="berkas CSV lintasan (bawaan: results/trajectory.csv)")
+                        help="trajectory CSV file (default: results/trajectory.csv)")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT,
-                        help="berkas PNG keluaran (bawaan: results/trajectory.png)")
+                        help="output PNG file (default: results/trajectory.png)")
     parser.add_argument("--no-vacuum", action="store_true",
-                        help="jangan gambar lintasan vakum pembanding")
-    parser.add_argument("--dpi", type=int, default=150, help="resolusi PNG")
+                        help="do not draw the vacuum comparison trajectory")
+    parser.add_argument("--dpi", type=int, default=150, help="PNG resolution")
     return parser.parse_args()
 
 
 def load_trajectory(path: Path) -> pd.DataFrame:
     if not path.is_file():
-        sys.exit(f"Berkas tidak ditemukan: {path}\n"
-                 "Jalankan simulasi Fortran terlebih dahulu (./ballistics).")
+        sys.exit(f"File not found: {path}\n"
+                 "Run the Fortran simulation first (./ballistics).")
     df = pd.read_csv(path, skipinitialspace=True)
     missing = {"t", "x", "y", "vx", "vy"} - set(df.columns)
     if missing:
-        sys.exit(f"Kolom hilang di {path}: {', '.join(sorted(missing))}")
+        sys.exit(f"Missing columns in {path}: {', '.join(sorted(missing))}")
     if len(df) < 2:
-        sys.exit(f"Data lintasan terlalu sedikit di {path}")
+        sys.exit(f"Not enough trajectory data in {path}")
     return df
 
 
 def vacuum_trajectory(vx0: float, vy0: float, y0: float, n: int = 400):
-    """Parabola vakum dari kondisi awal yang sama, hingga y = 0."""
+    """Vacuum parabola from the same initial conditions, down to y = 0."""
     t_flight = (vy0 + np.sqrt(vy0**2 + 2.0 * G * y0)) / G
     t = np.linspace(0.0, t_flight, n)
     return vx0 * t, y0 + vy0 * t - 0.5 * G * t**2
@@ -100,18 +100,18 @@ def main() -> None:
     if not args.no_vacuum:
         xv, yv = vacuum_trajectory(df["vx"].iloc[0], df["vy"].iloc[0], y[0])
         ax.plot(xv, yv, color=COLOR_VACUUM, linewidth=1.6, linestyle=(0, (5, 4)),
-                label="Tanpa hambatan (vakum)", zorder=2)
-        ax.annotate("vakum", xy=(xv[len(xv) // 2], yv.max()),
+                label="No drag (vacuum)", zorder=2)
+        ax.annotate("vacuum", xy=(xv[len(xv) // 2], yv.max()),
                     xytext=(0, 6), textcoords="offset points",
                     ha="center", va="bottom", fontsize=9, color=INK_SECONDARY)
 
     ax.plot(x, y, color=COLOR_DRAG, linewidth=2.2,
-            label="Dengan hambatan udara (RK4)", zorder=3)
+            label="With air drag (RK4)", zorder=3)
 
-    # Titik puncak dan titik tumbukan, dengan cincin warna permukaan
+    # Apex and impact point, with a ring in the surface color
     ax.scatter([x[i_apex], x_range], [h_max, y[-1]], s=64, color=COLOR_DRAG,
                edgecolors=SURFACE, linewidths=2, zorder=4)
-    ax.annotate(f"H maks = {h_max:.2f} m", xy=(x[i_apex], h_max),
+    ax.annotate(f"H max = {h_max:.2f} m", xy=(x[i_apex], h_max),
                 xytext=(0, 10), textcoords="offset points",
                 ha="center", va="bottom", fontsize=10, color=INK_PRIMARY)
     ax.annotate(f"R = {x_range:.2f} m\nT = {t_flight:.2f} s", xy=(x_range, 0),
@@ -121,9 +121,9 @@ def main() -> None:
     ax.set_xlim(left=0)
     ax.set_ylim(bottom=0)
     ax.margins(x=0.04, y=0.18)
-    ax.set_xlabel("Jarak horizontal x [m]", color=INK_SECONDARY, fontsize=10)
-    ax.set_ylabel("Ketinggian y [m]", color=INK_SECONDARY, fontsize=10)
-    ax.set_title("Lintasan peluru 2D dengan hambatan udara kuadratik",
+    ax.set_xlabel("Horizontal distance x [m]", color=INK_SECONDARY, fontsize=10)
+    ax.set_ylabel("Height y [m]", color=INK_SECONDARY, fontsize=10)
+    ax.set_title("2D projectile trajectory with quadratic air drag",
                  loc="left", fontsize=13, color=INK_PRIMARY, pad=14)
 
     legend = ax.legend(loc="upper right", frameon=False, fontsize=9)
@@ -135,7 +135,7 @@ def main() -> None:
     fig.savefig(args.output, dpi=args.dpi, facecolor=SURFACE)
     plt.close(fig)
 
-    print(f"Grafik disimpan ke {args.output}")
+    print(f"Figure saved to {args.output}")
     print(f"  R = {x_range:.4f} m | H = {h_max:.4f} m | T = {t_flight:.4f} s")
 
 
