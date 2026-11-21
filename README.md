@@ -44,7 +44,7 @@ The projectile is modeled as a point mass $m$ moving in the vertical $(x, y)$ pl
 The aerodynamic drag force
 
 $$
-F_d = \tfrac{1}{2}\,\rho\,C_d\,A\,v^2, \qquad A = \tfrac{\pi d^2}{4}, \qquad v = \sqrt{v_x^2 + v_y^2}
+F_d = \tfrac{1}{2}\thinspace \rho\thinspace C_d\thinspace A\thinspace v^2, \qquad A = \tfrac{\pi d^2}{4}, \qquad v = \sqrt{v_x^2 + v_y^2}
 \qquad\qquad (1)
 $$
 
@@ -53,7 +53,7 @@ drag coefficient, and $d$ is the projectile diameter. The drag constant per unit
 is defined as
 
 $$
-k = \frac{\rho\,C_d\,A}{2m} \quad [\mathrm{m^{-1}}].
+k = \frac{\rho\thinspace C_d\thinspace A}{2m} \quad [\mathrm{m^{-1}}].
 \qquad\qquad (2)
 $$
 
@@ -63,8 +63,8 @@ $\mathbf{s} = [x,\ y,\ v_x,\ v_y]^\mathsf{T}$:
 $$
 \dot{x} = v_x, \qquad
 \dot{y} = v_y, \qquad
-\dot{v}_x = -k\,v\,v_x, \qquad
-\dot{v}_y = -g - k\,v\,v_y,
+\dot{v}_x = -k\thinspace v\thinspace v_x, \qquad
+\dot{v}_y = -g - k\thinspace v\thinspace v_y,
 \qquad\qquad (3)
 $$
 
@@ -85,7 +85,7 @@ $$
 \mathbf{K}_1 &= \mathbf{f}(\mathbf{s}_n), &
 \mathbf{K}_2 &= \mathbf{f}\big(\mathbf{s}_n + \tfrac{h}{2}\mathbf{K}_1\big), \\
 \mathbf{K}_3 &= \mathbf{f}\big(\mathbf{s}_n + \tfrac{h}{2}\mathbf{K}_2\big), &
-\mathbf{K}_4 &= \mathbf{f}\big(\mathbf{s}_n + h\,\mathbf{K}_3\big),
+\mathbf{K}_4 &= \mathbf{f}\big(\mathbf{s}_n + h\thinspace \mathbf{K}_3\big),
 \end{aligned}
 \qquad\qquad (4)
 $$
@@ -102,7 +102,7 @@ no implicit iteration, unlike the Verlet scheme when the force depends on veloci
 For $C_d = 0$, the exact solution of (3) is a polynomial of degree two in $t$, which
 RK4 integrates without truncation error. The comparison with the vacuum solution
 therefore tests the correctness of the implementation, not the discretization
-accuracy. Time is computed as $t_n = n\,h$ to prevent the accumulation of rounding
+accuracy. Time is computed as $t_n = n\thinspace h$ to prevent the accumulation of rounding
 error.
 
 ### C. Event Location
