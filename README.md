@@ -45,7 +45,7 @@ The aerodynamic drag force
 
 $$
 F_d = \tfrac{1}{2}\,\rho\,C_d\,A\,v^2, \qquad A = \tfrac{\pi d^2}{4}, \qquad v = \sqrt{v_x^2 + v_y^2}
-\tag{1}
+\qquad\qquad (1)
 $$
 
 acts opposite to the velocity vector, where $\rho$ is the air density, $C_d$ is the
@@ -54,7 +54,7 @@ is defined as
 
 $$
 k = \frac{\rho\,C_d\,A}{2m} \quad [\mathrm{m^{-1}}].
-\tag{2}
+\qquad\qquad (2)
 $$
 
 Newton's second law gives a first-order system for the state vector
@@ -65,7 +65,7 @@ $$
 \dot{y} = v_y, \qquad
 \dot{v}_x = -k\,v\,v_x, \qquad
 \dot{v}_y = -g - k\,v\,v_y,
-\tag{3}
+\qquad\qquad (3)
 $$
 
 with the initial condition $\mathbf{s}(0) = [0,\ y_0,\ v_0\cos\theta,\ v_0\sin\theta]^\mathsf{T}$.
@@ -87,12 +87,12 @@ $$
 \mathbf{K}_3 &= \mathbf{f}\big(\mathbf{s}_n + \tfrac{h}{2}\mathbf{K}_2\big), &
 \mathbf{K}_4 &= \mathbf{f}\big(\mathbf{s}_n + h\,\mathbf{K}_3\big),
 \end{aligned}
-\tag{4}
+\qquad\qquad (4)
 $$
 
 $$
 \mathbf{s}_{n+1} = \Phi_h(\mathbf{s}_n) = \mathbf{s}_n + \tfrac{h}{6}\big(\mathbf{K}_1 + 2\mathbf{K}_2 + 2\mathbf{K}_3 + \mathbf{K}_4\big).
-\tag{5}
+\qquad\qquad (5)
 $$
 
 The method has a local error of $\mathcal{O}(h^5)$ and a global error of
@@ -110,8 +110,8 @@ error.
 If $y_n > 0$ and $y_{n+1} \le 0$, the partial step $\eta^\ast$ that satisfies
 
 $$
-\big[\Phi_\eta(\mathbf{s}_n)\big]_y = 0, \qquad \eta \in (0,\ h],
-\tag{6}
+\big[\Phi_{\eta^\ast}(\mathbf{s}_n)\big]_y = 0, \qquad \eta^\ast \in (0,\ h],
+\qquad\qquad (6)
 $$
 
 is found by bisection until the interval can no longer be halved in machine precision,
@@ -153,9 +153,9 @@ For $C_d = 0$ and $y_0 = 0$, system (3) has the analytic solution
 
 $$
 R = \frac{v_0^2 \sin 2\theta}{g}, \qquad
-H_{\max} = \frac{v_0^2 \sin^2\theta}{2g}, \qquad
+H = \frac{v_0^2 \sin^2\theta}{2g}, \qquad
 T = \frac{2 v_0 \sin\theta}{g}.
-\tag{7}
+\qquad\qquad (7)
 $$
 
 Three tests run automatically with `./ballistics --verify`, and the program exits with
@@ -173,7 +173,7 @@ $h = 0.2/2^j$, $j = 0, \dots, 4$. The empirical order is
 
 $$
 p = \log_2 \frac{e(h)}{e(h/2)}.
-\tag{8}
+\qquad\qquad (8)
 $$
 
 The same mode also searches for the elevation angle that maximizes $R$ by sweeping
@@ -204,8 +204,9 @@ Table III lists the errors relative to the reference solution for the drag case.
 Steps column counts the full steps plus the final partial step. The empirical order (8)
 approaches 4 from above. It falls from 4.10 to 4.13 for the coarsest pair to 4.01 to
 4.02 for the finest pair, in line with the theoretical order of RK4. Extrapolating
-$e \propto h^4$ from $h = 0.0125$ s gives a discretization error of about
-$7 \times 10^{-16}$ at $h = 1$ ms, which is below the rounding floor seen in Table II.
+$e \propto h^4$ from $h = 0.0125$ s gives discretization errors between
+$6 \times 10^{-16}$ ($T$) and $1.7 \times 10^{-15}$ ($H$) at $h = 1$ ms, which are below
+the rounding floor seen in Table II.
 The uncertainty in the results of Section III-C is therefore dominated by the model
 assumptions, not by the numerical method.
 
