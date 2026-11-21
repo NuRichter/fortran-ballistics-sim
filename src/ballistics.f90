@@ -13,6 +13,7 @@
 ! Pemakaian:
 !   ./ballistics            simulasi utama, tulis results/trajectory.csv
 !   ./ballistics --verify   uji verifikasi fisika (Cd = 0 vs solusi vakum)
+!   ./ballistics --study    studi konvergensi RK4 dan sudut elevasi optimum
 !   ./ballistics --help     tampilkan bantuan
 !===============================================================================
 module ballistics_core
@@ -277,6 +278,8 @@ program ballistics
       select case (trim(arg))
       case ('--verify', '-v')
          call run_verification()
+      case ('--study', '-s')
+         call run_study()
       case ('--help', '-h')
          call print_usage()
       case default
@@ -290,9 +293,10 @@ contains
 
    !----------------------------------------------------------------------------
    subroutine print_usage()
-      write(*, '(a)') 'Pemakaian: ballistics [--verify | --help]'
+      write(*, '(a)') 'Pemakaian: ballistics [--verify | --study | --help]'
       write(*, '(a)') '  (tanpa argumen)  simulasi utama, tulis ' // OUT_FILE
       write(*, '(a)') '  --verify, -v     uji verifikasi Cd = 0 vs solusi analitik vakum'
+      write(*, '(a)') '  --study,  -s     studi konvergensi RK4 dan sudut elevasi optimum'
       write(*, '(a)') '  --help,   -h     tampilkan bantuan ini'
    end subroutine print_usage
 
@@ -442,6 +446,71 @@ contains
       end if
       write(*, '(a)') '  HASIL: semua uji LULUS'
    end subroutine run_verification
+
+   !----------------------------------------------------------------------------
+   ! Studi numerik dengan parameter bawaan.
+   !  1) Konvergensi: galat relatif R, H, T terhadap solusi acuan dt = 1e-4 s
+   !     untuk dt = 0,2 / 2^j (j = 0..4), dengan orde empiris
+   !     p = log2( e(dt) / e(dt/2) ).
+   !  2) Sudut elevasi yang memaksimalkan jarak (sapuan 25..45 derajat,
+   !     resolusi 0,05 derajat).
+   !----------------------------------------------------------------------------
+   subroutine run_study()
+      integer,  parameter :: N_DT = 5
+      real(dp), parameter :: DT_REF = 1.0e-4_dp
+      type(sim_params)  :: p
+      type(sim_summary) :: ref, res
+      real(dp) :: dt, k, e(3), e_prev(3), best_r, best_th
+      integer  :: j
+
+      k = 0.5_dp * p%rho * p%cd * (0.25_dp * PI * p%diameter**2) / p%mass
+
+      write(*, '(a)') repeat('=', 74)
+      write(*, '(a)') '  STUDI KONVERGENSI RK4  (parameter bawaan, acuan dt = 1e-4 s)'
+      write(*, '(a)') repeat('=', 74)
+      write(*, '(a)') '      dt [s]  langkah    galat_R    galat_H    galat_T   p_R   p_H   p_T'
+      write(*, '(a)') repeat('-', 74)
+
+      p%dt = DT_REF
+      call simulate(p, ref)
+
+      e_prev = 0.0_dp
+      do j = 0, N_DT - 1
+         dt   = 0.2_dp / 2.0_dp**j
+         p%dt = dt
+         call simulate(p, res)
+         e = [abs(res%range    - ref%range)    / ref%range,  &
+              abs(res%h_max    - ref%h_max)    / ref%h_max,  &
+              abs(res%t_flight - ref%t_flight) / ref%t_flight]
+         if (j == 0) then
+            write(*, '(2x, f10.4, i9, 3es11.2)') dt, res%n_points - 1, e
+         else
+            write(*, '(2x, f10.4, i9, 3es11.2, 3f6.2)') dt, res%n_points - 1, e, &
+               log(e_prev / e) / log(2.0_dp)
+         end if
+         e_prev = e
+      end do
+
+      write(*, '(a)') repeat('-', 74)
+      write(*, '(a, es12.4, a)') '  Konstanta hambat  k   = ', k, ' 1/m'
+      write(*, '(a, f12.4, a)')  '  Laju terminal     v_t = ', sqrt(p%g / k), ' m/s'
+      write(*, '(a, f12.4)')     '  Rasio F_d / (m g) pada t = 0  = ', k * p%v0**2 / p%g
+
+      p%dt    = 1.0e-3_dp
+      best_r  = 0.0_dp
+      best_th = p%theta_deg
+      do j = 0, 400
+         p%theta_deg = 25.0_dp + 0.05_dp * real(j, dp)
+         call simulate(p, res)
+         if (res%range > best_r) then
+            best_r  = res%range
+            best_th = p%theta_deg
+         end if
+      end do
+      write(*, '(a, f6.2, a, f10.4, a)') '  Sudut optimum     theta* = ', best_th, &
+         ' derajat  (R = ', best_r, ' m)'
+      write(*, '(a)') repeat('=', 74)
+   end subroutine run_study
 
    !----------------------------------------------------------------------------
    pure function status_text(ok) result(txt)
