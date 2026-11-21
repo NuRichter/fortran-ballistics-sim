@@ -1,0 +1,33 @@
+# --- Hasil kompilasi Fortran ---
+ballistics
+*.o
+*.obj
+*.mod
+*.smod
+*.a
+*.so
+*.dll
+*.exe
+*.out
+
+# --- Keluaran simulasi (dibuat ulang saat program dijalankan) ---
+# Grafik trajectory.png tetap di-commit sebagai pratinjau README.
+results/*
+!results/.gitkeep
+!results/trajectory.png
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# --- Editor dan sistem operasi ---
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
